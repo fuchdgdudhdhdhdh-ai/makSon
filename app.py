@@ -187,8 +187,69 @@ def tg_get_file_bytes(file_id: str) -> bytes | None:
 
 
 # ============================================================================
-#  QR-ДЕКОДЕРЫ
+#  QR-ДЕКОДЕРЫ (с поддержкой QR с логотипом в центре)
 # ============================================================================
+def _detect_qr_bbox_cv(gray) -> tuple | None:
+    """Возвращает bbox (x, y, w, h) найденного QR-кода или None."""
+    if cv2 is None:
+        return None
+    try:
+        detector = cv2.QRCodeDetector()
+        ok, points = detector.detect(gray)
+        if not ok or points is None or len(points) == 0:
+            return None
+        pts = points[0]
+        x = int(pts[:, 0].min())
+        y = int(pts[:, 1].min())
+        w = int(pts[:, 0].max() - x)
+        h = int(pts[:, 1].max() - y)
+        if w < 40 or h < 40:
+            return None
+        return (x, y, w, h)
+    except Exception:
+        return None
+
+
+def _mask_center_cv(img, ratio: float = 0.25, bbox: tuple | None = None):
+    """
+    Затирает центральную область QR белым.
+    Если bbox известен — маскируется центр именно QR, иначе центр всего изображения.
+    """
+    img = img.copy()
+    h, w = img.shape[:2]
+    if bbox is not None:
+        bx, by, bw, bh = bbox
+        cx = bx + bw // 2
+        cy = by + bh // 2
+        mw = int(bw * ratio / 2)
+        mh = int(bh * ratio / 2)
+    else:
+        cx, cy = w // 2, h // 2
+        mw = int(w * ratio / 2)
+        mh = int(h * ratio / 2)
+    cv2.rectangle(img, (cx - mw, cy - mh), (cx + mw, cy + mh), 255, -1)
+    return img
+
+
+def _mask_center_pil(img, ratio: float = 0.25):
+    """PIL-версия затирания центра."""
+    from PIL import ImageDraw
+    img = img.copy()
+    w, h = img.size
+    cx, cy = w // 2, h // 2
+    mw = int(w * ratio / 2)
+    mh = int(h * ratio / 2)
+    if img.mode == "RGB":
+        fill = (255, 255, 255)
+    elif img.mode == "L":
+        fill = 255
+    else:
+        fill = 255
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([cx - mw, cy - mh, cx + mw, cy + mh], fill=fill)
+    return img
+
+
 def _try_pyzbar(img_bytes: bytes) -> str | None:
     if not PYZBAR_OK:
         return None
@@ -197,26 +258,38 @@ def _try_pyzbar(img_bytes: bytes) -> str | None:
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGB")
 
-        results = pyzbar_decode(img)
-        if results:
-            return results[0].data.decode("utf-8", errors="ignore").strip()
+        variants = []
 
+        # Базовые варианты
+        variants.append(img)
         w, h = img.size
-        img_big = img.resize((w * 2, h * 2), Image.LANCZOS)
-        results = pyzbar_decode(img_big)
-        if results:
-            return results[0].data.decode("utf-8", errors="ignore").strip()
+        variants.append(img.resize((w * 2, h * 2), Image.LANCZOS))
+        variants.append(img.resize((w * 3, h * 3), Image.LANCZOS))
 
+        # Grayscale
         img_gray = img.convert("L")
-        img_bw = img_gray.point(lambda p: 0 if p < 128 else 255, "1")
-        results = pyzbar_decode(img_bw)
-        if results:
-            return results[0].data.decode("utf-8", errors="ignore").strip()
+        variants.append(img_gray)
 
-        img_inv = img_gray.point(lambda p: 255 if p < 128 else 0, "L")
-        results = pyzbar_decode(img_inv)
-        if results:
-            return results[0].data.decode("utf-8", errors="ignore").strip()
+        # Бинаризация
+        img_bw = img_gray.point(lambda p: 0 if p < 128 else 255, "1")
+        variants.append(img_bw)
+
+        # Инверсия
+        variants.append(img_gray.point(lambda p: 255 if p < 128 else 0, "L"))
+
+        # Затирание центра белым (главное для QR с логотипом)
+        for ratio in (0.20, 0.25, 0.30):
+            variants.append(_mask_center_pil(img, ratio=ratio))
+            variants.append(_mask_center_pil(img_gray, ratio=ratio))
+            variants.append(_mask_center_pil(img_bw, ratio=ratio))
+
+        for v in variants:
+            try:
+                results = pyzbar_decode(v)
+                if results:
+                    return results[0].data.decode("utf-8", errors="ignore").strip()
+            except Exception:
+                continue
 
         return None
     except Exception:
@@ -234,19 +307,70 @@ def _try_opencv(img_bytes: bytes) -> str | None:
 
         detector = cv2.QRCodeDetector()
 
-        data, _, _ = detector.detectAndDecode(img)
-        if data:
-            return data.strip()
+        def _try_decode(im) -> str | None:
+            try:
+                data, _, _ = detector.detectAndDecode(im)
+                if data:
+                    return data.strip()
+            except Exception:
+                pass
+            return None
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+        # 1) Оригинал
+        r = _try_decode(img)
+        if r: return r
+        r = _try_decode(gray)
+        if r: return r
+
+        # 2) Затирание центра всего изображения
+        for ratio in (0.20, 0.25, 0.30):
+            r = _try_decode(_mask_center_cv(img, ratio=ratio))
+            if r: return r
+            r = _try_decode(_mask_center_cv(gray, ratio=ratio))
+            if r: return r
+
+        # 3) Находим bbox QR и затираем центр именно QR
+        bbox = _detect_qr_bbox_cv(gray)
+        if bbox is not None:
+            bx, by, bw, bh = bbox
+            # Обрезаем по bbox и пробуем разные масштабы
+            x0, y0 = max(0, bx - 10), max(0, by - 10)
+            x1, y1 = min(img.shape[1], bx + bw + 10), min(img.shape[0], by + bh + 10)
+            crop = img[y0:y1, x0:x1]
+            crop_gray = gray[y0:y1, x0:x1]
+
+            r = _try_decode(crop)
+            if r: return r
+            r = _try_decode(crop_gray)
+            if r: return r
+
+            for ratio in (0.18, 0.22, 0.26, 0.30):
+                r = _try_decode(_mask_center_cv(crop, ratio=ratio))
+                if r: return r
+                r = _try_decode(_mask_center_cv(crop_gray, ratio=ratio))
+                if r: return r
+
+            # Увеличение crop
+            for scale in (2.0, 3.0):
+                big = cv2.resize(crop_gray, None, fx=scale, fy=scale,
+                                 interpolation=cv2.INTER_CUBIC)
+                for ratio in (0.18, 0.22, 0.26):
+                    r = _try_decode(_mask_center_cv(big, ratio=ratio))
+                    if r: return r
+
+        # 4) Увеличение всего изображения
         for scale in (1.5, 2.0, 3.0):
             big = cv2.resize(gray, None, fx=scale, fy=scale,
                              interpolation=cv2.INTER_CUBIC)
-            data, _, _ = detector.detectAndDecode(big)
-            if data:
-                return data.strip()
+            r = _try_decode(big)
+            if r: return r
+            for ratio in (0.20, 0.25):
+                r = _try_decode(_mask_center_cv(big, ratio=ratio))
+                if r: return r
 
+        # 5) Адаптивный threshold
         for block in (11, 21, 31):
             th = cv2.adaptiveThreshold(
                 gray, 255,
@@ -254,19 +378,23 @@ def _try_opencv(img_bytes: bytes) -> str | None:
                 cv2.THRESH_BINARY,
                 block, 2,
             )
-            data, _, _ = detector.detectAndDecode(th)
-            if data:
-                return data.strip()
-            data, _, _ = detector.detectAndDecode(255 - th)
-            if data:
-                return data.strip()
+            r = _try_decode(th)
+            if r: return r
+            r = _try_decode(255 - th)
+            if r: return r
+            for ratio in (0.20, 0.25):
+                r = _try_decode(_mask_center_cv(th, ratio=ratio))
+                if r: return r
 
+        # 6) Otsu
         _, otsu = cv2.threshold(
             gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
         )
-        data, _, _ = detector.detectAndDecode(otsu)
-        if data:
-            return data.strip()
+        r = _try_decode(otsu)
+        if r: return r
+        for ratio in (0.20, 0.25, 0.30):
+            r = _try_decode(_mask_center_cv(otsu, ratio=ratio))
+            if r: return r
 
         return None
     except Exception:
@@ -274,9 +402,16 @@ def _try_opencv(img_bytes: bytes) -> str | None:
 
 
 def decode_qr_from_bytes(img_bytes: bytes) -> str | None:
-    return _try_pyzbar(img_bytes) or _try_opencv(img_bytes)
-
-
+    """Пробует pyzbar, затем OpenCV. Возвращает первое успешное значение."""
+    r = _try_pyzbar(img_bytes)
+    if r:
+        log.info("QR распознан через pyzbar")
+        return r
+    r = _try_opencv(img_bytes)
+    if r:
+        log.info("QR распознан через OpenCV")
+        return r
+    return None
 # ============================================================================
 #  СОСТОЯНИЕ
 # ============================================================================
