@@ -853,8 +853,13 @@ async def handle_update(upd: dict) -> None:
         await handle_qr_link(qr_text)
         return
 
-    text = msg.get("text", "")
+        text = msg.get("text", "")
     if not text:
+        return
+
+    # Команды бота
+    if text.startswith("/"):
+        await handle_bot_command(text)
         return
 
     m = URL_RE.search(text)
@@ -895,6 +900,58 @@ async def handle_callback_query(cb: dict) -> None:
     cb_id = cb["id"]
     data = cb.get("data", "")
 
+        if data.startswith("kill_session:"):
+        _, phone, sid = data.split(":", 2)
+        client = active_clients.get(phone)
+        if not client:
+            tg_answer_callback(cb_id, "Аккаунт отключён")
+            return
+
+        tg_answer_callback(cb_id, "Завершаю…")
+        try:
+            closed = False
+            # Пробуем разные имена методов — зависит от версии PyMax
+            for method_name in ("close_session", "kill_session",
+                                "terminate_session", "delete_session"):
+                fn = getattr(client, method_name, None)
+                if callable(fn):
+                    try:
+                        await fn(sid)
+                        closed = True
+                        break
+                    except Exception:
+                        continue
+
+            if not closed:
+                # Fallback: закрываем всё, кроме текущей
+                await client.close_all_sessions()
+                tg_send_message(
+                    f"⚠️ <code>{phone}</code>: точечное удаление недоступно, "
+                    f"закрыты все сессии, кроме текущей"
+                )
+            else:
+                tg_send_message(
+                    f"✅ <code>{phone}</code>: сессия <code>{sid}</code> завершена"
+                )
+        except Exception as e:
+            tg_send_message(f"❌ <code>{phone}</code>: <code>{e}</code>")
+        return
+
+    if data.startswith("kill_all:"):
+        _, phone = data.split(":", 1)
+        client = active_clients.get(phone)
+        if not client:
+            tg_answer_callback(cb_id, "Аккаунт отключён")
+            return
+
+        tg_answer_callback(cb_id, "Завершаю…")
+        try:
+            await client.close_all_sessions()
+            tg_send_message(f"🧹 <code>{phone}</code> — все прочие сессии сброшены")
+        except Exception as e:
+            tg_send_message(f"❌ <code>{phone}</code>: <code>{e}</code>")
+        return
+    
     if data.startswith("qr_cancel:"):
         token = data.split(":", 1)[1]
         pending_qr_links.pop(token, None)
