@@ -46,6 +46,96 @@ except ImportError:
         PasswordProvider = object
 
 # ============================================================================
+#  КОМАНДЫ БОТА
+# ============================================================================
+HELP_TEXT = (
+    "🤖 <b>Команды бота</b>\n\n"
+    "/sessions — показать активные сессии\n"
+    "/kill_all — завершить все сессии, кроме текущей\n"
+    "/accounts — список активных аккаунтов\n"
+    "/help — эта справка\n\n"
+    "Отправьте QR-код (фото) или ссылку для подтверждения входа."
+)
+
+
+async def cmd_sessions() -> None:
+    if not active_clients:
+        tg_send_message("❌ Нет активных аккаунтов")
+        return
+
+    for phone, client in active_clients.items():
+        try:
+            sessions = await client.get_sessions()
+        except Exception as e:
+            tg_send_message(f"❌ <code>{phone}</code>: не удалось получить сессии — <code>{e}</code>")
+            continue
+
+        if not sessions:
+            tg_send_message(f"📱 <code>{phone}</code>\nАктивных сессий нет")
+            continue
+
+        lines = [f"📱 <b>{phone}</b> — сессий: {len(sessions)}"]
+        buttons = []
+        for i, s in enumerate(sessions):
+            sid = getattr(s, "id", None)
+            device = getattr(s, "device_name", None) or "?"
+            current = getattr(s, "current", False)
+            mark = " ← <b>текущая</b>" if current else ""
+            lines.append(f"{i+1}. <code>{device}</code> (id=<code>{sid}</code>){mark}")
+
+            if not current and sid:
+                buttons.append([{
+                    "text": f"❌ Удалить #{i+1} — {device[:20]}",
+                    "callback_data": f"kill_session:{phone}:{sid}",
+                }])
+
+        buttons.append([{
+            "text": "🧹 Удалить все, кроме текущей",
+            "callback_data": f"kill_all:{phone}",
+        }])
+
+        tg_send_message("\n".join(lines), reply_markup={"inline_keyboard": buttons})
+
+
+async def cmd_kill_all() -> None:
+    if not active_clients:
+        tg_send_message("❌ Нет активных аккаунтов")
+        return
+
+    for phone, client in active_clients.items():
+        try:
+            await client.close_all_sessions()
+            tg_send_message(f"🧹 <code>{phone}</code> — все прочие сессии сброшены")
+        except Exception as e:
+            tg_send_message(f"❌ <code>{phone}</code>: <code>{e}</code>")
+
+
+async def handle_bot_command(text: str) -> None:
+    cmd = text.split()[0].lower().lstrip("/").split("@")[0]
+
+    if cmd in ("start", "help"):
+        tg_send_message(HELP_TEXT)
+        return
+
+    if cmd == "accounts":
+        if not active_clients:
+            tg_send_message("❌ Нет активных аккаунтов")
+            return
+        lines = "\n".join(f"• <code>{p}</code>" for p in active_clients.keys())
+        tg_send_message(f"📱 <b>Активные аккаунты:</b>\n{lines}")
+        return
+
+    if cmd == "sessions":
+        await cmd_sessions()
+        return
+
+    if cmd == "kill_all":
+        await cmd_kill_all()
+        return
+
+    tg_send_message(f"❓ Неизвестная команда: <code>{text}</code>\nНапишите /help")
+
+# ============================================================================
 #  КОНФИГ
 # ============================================================================
 load_dotenv()
