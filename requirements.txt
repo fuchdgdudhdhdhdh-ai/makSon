@@ -1,0 +1,8 @@
+maxapi-python
+aiohttp
+requests
+python-dotenv
+opencv-python-headless
+numpy
+pyzbar
+Pillow
