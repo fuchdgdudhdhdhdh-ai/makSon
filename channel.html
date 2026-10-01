@@ -3,15 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Сливы с тик тока — MAX</title>
+<title>ВСЕ СЛИВЫ ТУТ! — MAX</title>
 <style>
-  /* ---------- Сброс ---------- */
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
-  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -192,21 +186,20 @@
   <div class="bg-pattern">
     <div class="card">
 
-      <!-- Аватар канала -->
+      <!-- Аватар канала: положи файл avatar.jpg рядом с channel.html -->
       <div class="avatar-wrap">
-        <img src="IMG_0637.jpeg" alt="Sliw TikTok"
+        <img src="avatar.jpg" alt="Channel"
              onerror="this.style.display='none';
-                      this.parentNode.innerHTML='<div class=&quot;avatar-placeholder&quot;>BS</div>';">
+                      this.parentNode.innerHTML='<div class=&quot;avatar-placeholder&quot;>ST</div>';">
       </div>
 
-      <!-- Название и юзернейм -->
-      <h1 class="channel-name" id="chName">Brawl Stars</h1>
-      <div class="channel-username" id="chUser">@brawl_stars_tg</div>
+      <!-- Название и юзернейм (перезапишутся из JS) -->
+      <h1 class="channel-name" id="chName">ВСЕ СЛИВЫ ТУТ!</h1>
+      <div class="channel-username" id="chUser">@sliw_broth_sistr_tt</div>
 
       <!-- Описание -->
       <p class="channel-desc" id="chDesc">
-        Brawl Stars в Max! Самый качественный контент по мобильной игре
-        Brawl Stars. Подпишись.
+        Все видео сливы тут! Несколько видео брат и сестра, сливы Казань коттедж, сливы с подъездов, слив с Воронежа и т. д.
       </p>
 
       <!-- Кнопка -->
@@ -226,16 +219,12 @@
   </div>
 
 <script>
-  /* =========================================================
-     КОНФИГУРАЦИЯ КАНАЛА
-     Можно переопределить через URL-параметры:
-       ?name=...&user=...&desc=...&url=...
-     ========================================================= */
   const DEFAULTS = {
     name: 'ВСЕ СЛИВЫ ТУТ!',
     user: '@sliw_broth_sistr_tt',
     desc: 'Все видео сливы тут! Несколько видео брат и сестра, сливы Казань коттедж, сливы с подъездов, слив с Воронежа и т. д.',
-    url:  'https://max.ru/brawl_stars_tg'
+    // ⚠️ ЗАМЕНИ на URL своего канала в MAX:
+    url:  'https://max.ru/sliw_broth_sistr_tt'
   };
 
   const qs = new URLSearchParams(location.search);
